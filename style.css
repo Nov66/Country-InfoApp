@@ -29,6 +29,7 @@ body {
 .countries {
   /* margin-bottom: 8rem; */
   display: flex;
+  flex-wrap: wrap;
 
   font-size: 2rem;
   opacity: 0;
