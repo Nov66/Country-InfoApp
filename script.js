@@ -27,47 +27,48 @@ const renderCountry = function (data, className = '') {
   countriesContainer.style.opacity = 1;
 };
 
-const getCountryAndNeighbor = function (country) {
-  // NOTE: AJAX Call country 1
-  const request = new XMLHttpRequest();
-  request.open('GET', `https://restcountries.com/v3.1/name/${country}`);
-  request.send();
+const renderError = function (msg) {
+  countriesContainer.insertAdjacentText('beforeend', msg);
+  countriesContainer.style.opacity = 1;
+};
 
-  /* NOTE: Register a Callback function on the request object for the Load Event
-  - Send off the request
-  - Request then fetches data in the background
-  - Once that is done, emit the load event
-  */
-  request.addEventListener('load', function () {
-    // console.log(this.responseText);
-
-    // NOTE: Destructuring -> An array of Object
-    const [data] = JSON.parse(this.responseText);
-    // = const data= JSON.parse(this.responseText)[0]
-    console.log(data);
-
-    // NOTE: Render Country
-    renderCountry(data);
-
-    // NOTE: Get Neighbor Country
-    const neighbors = data.borders;
-    if (!neighbors) return;
-    neighbors.forEach(neighbor => {
-      // NOTE: AJAX Call country 2
-      const request2 = new XMLHttpRequest();
-      request2.open('GET', `https://restcountries.com/v3.1/alpha/${neighbor}`);
-      request2.send();
-
-      request2.addEventListener('load', function () {
-        const [data2] = JSON.parse(this.responseText);
-        console.log(data2);
-
-        renderCountry(data2, 'neighbour');
-      });
-    });
+// HIGHLIGHT: Helper function to get JSON
+const getJSON = function (url, errorMessage = 'Something went wrong') {
+  // NOTE: Return fetch = return Promise -> we need our function itself to return a promise
+  return fetch(url).then(response => {
+    // HIGHLIGHT: Create our own Error Message to handle 404
+    if (!response.ok) {
+      throw new Error(`${errorMessage} (${response.status})`);
+    }
+    return response.json();
   });
 };
-// getCountryData('australia');
-// getCountryData('cn');
-// getCountryData('usa');
-getCountryAndNeighbor('cn');
+
+const getCountryData = country => {
+  // NOTE: Country 1
+  getJSON(`https://restcountries.com/v3.1/name/${country}`, 'Country not found')
+    .then(([data]) => {
+      renderCountry(data);
+      const neighbors = data.borders;
+      if (!neighbors) throw new Error('No Neighbor found!');
+      return neighbors;
+    })
+    .then(neighbors => {
+      neighbors.forEach(neighbor => {
+        getJSON(
+          `https://restcountries.com/v3.1/alpha/${neighbor}`,
+          'Country not found'
+        ).then(([data]) => renderCountry(data, 'neighbour'));
+      });
+    })
+    .catch(err => {
+      console.log(`${err}`);
+      renderError(`Something went wrong 💥💥 ${err.message}. Try again`);
+    })
+    .finally(() => {
+      countriesContainer.style.opacity = 1;
+    });
+};
+btn.addEventListener('click', function () {
+  getCountryData('australia');
+});
