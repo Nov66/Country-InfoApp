@@ -1,9 +1,8 @@
 'use strict';
-
-const btn = document.querySelector('.btn-country');
 const countriesContainer = document.querySelector('.countries');
+const btnWhereAmI = document.querySelector('.btn-country');
 
-const renderCountry = function (data, className = '') {
+const renderCountry = (data, className = '') => {
   const html = `
   <article class="country ${className}">
     <img class="country__img" src="${data.flags.svg}" />
@@ -12,7 +11,7 @@ const renderCountry = function (data, className = '') {
       <h4 class="country__region">${data.region}</h4>
       <p class="country__row"><span>👫</span>${(
         +data.population / 1000000
-      ).toFixed(2)} million</p>
+      ).toFixed(1)} million</p>
       <p class="country__row"><span>🗣️</span>${Object.values(
         data.languages
       )}</p>
@@ -22,53 +21,64 @@ const renderCountry = function (data, className = '') {
     </div>
   </article>
   `;
-
   countriesContainer.insertAdjacentHTML('beforeend', html);
   countriesContainer.style.opacity = 1;
 };
 
-const renderError = function (msg) {
+const renderError = msg => {
   countriesContainer.insertAdjacentText('beforeend', msg);
   countriesContainer.style.opacity = 1;
 };
 
-// HIGHLIGHT: Helper function to get JSON
-const getJSON = function (url, errorMessage = 'Something went wrong') {
-  // NOTE: Return fetch = return Promise -> we need our function itself to return a promise
-  return fetch(url).then(response => {
-    // HIGHLIGHT: Create our own Error Message to handle 404
-    if (!response.ok) {
-      throw new Error(`${errorMessage} (${response.status})`);
-    }
-    return response.json();
-  });
-};
-
-const getCountryData = country => {
-  // NOTE: Country 1
-  getJSON(`https://restcountries.com/v3.1/name/${country}`, 'Country not found')
+const getLocationInfo = position => {
+  const { latitude } = position.coords;
+  const { longitude } = position.coords;
+  console.log(position);
+  fetch(`https://geocode.xyz/${latitude},${longitude}?geoit=json`)
+    .then(response => {
+      if (!response.ok) {
+        throw new Error(`Problem with GeoCoding ${response.status}`);
+      }
+      return response.json();
+    })
+    .then(data => {
+      const country = data.country;
+      return country;
+    })
+    .then(country => {
+      return fetch(`https://restcountries.com/v3.1/name/${country}`);
+    })
+    .then(response => response.json())
     .then(([data]) => {
+      console.log(data);
       renderCountry(data);
+
       const neighbors = data.borders;
-      if (!neighbors) throw new Error('No Neighbor found!');
       return neighbors;
     })
     .then(neighbors => {
+      if (!neighbors) {
+        renderError(`No Neighbor Country Found`);
+        return;
+      }
       neighbors.forEach(neighbor => {
-        getJSON(
-          `https://restcountries.com/v3.1/alpha/${neighbor}`,
-          'Country not found'
-        ).then(([data]) => renderCountry(data, 'neighbour'));
+        fetch(`https://restcountries.com/v3.1/alpha/${neighbor}`)
+          .then(response => response.json())
+          .then(([data]) => renderCountry(data, 'neighbour'));
       });
     })
     .catch(err => {
-      console.log(`${err}`);
-      renderError(`Something went wrong 💥💥 ${err.message}. Try again`);
-    })
-    .finally(() => {
-      countriesContainer.style.opacity = 1;
+      console.error(`${err}`);
+      renderError(`Something went WRONG 💥💥. Please Try Again`);
     });
 };
-btn.addEventListener('click', function () {
-  getCountryData('australia');
-});
+
+const whereAmI = () => {
+  if (navigator.geolocation) {
+    navigator.geolocation.getCurrentPosition(getLocationInfo, () =>
+      alert('Could not get your location')
+    );
+  }
+};
+
+btnWhereAmI.addEventListener('click', whereAmI);
