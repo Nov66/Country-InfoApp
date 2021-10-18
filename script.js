@@ -30,11 +30,20 @@ const renderError = msg => {
   countriesContainer.style.opacity = 1;
 };
 
-const getLocationInfo = position => {
-  const { latitude } = position.coords;
-  const { longitude } = position.coords;
-  console.log(position);
-  fetch(`https://geocode.xyz/${latitude},${longitude}?geoit=json`)
+const whereAmI = () => {
+  return new Promise((resolve, reject) => {
+    navigator.geolocation.getCurrentPosition(resolve, reject);
+  });
+};
+
+const getLocationInfo = () => {
+  whereAmI()
+    .then(position => {
+      const { latitude } = position.coords;
+      const { longitude } = position.coords;
+      console.log(position);
+      return fetch(`https://geocode.xyz/${latitude},${longitude}?geoit=json`);
+    })
     .then(response => {
       if (!response.ok) {
         throw new Error(`Problem with GeoCoding ${response.status}`);
@@ -73,12 +82,4 @@ const getLocationInfo = position => {
     });
 };
 
-const whereAmI = () => {
-  if (navigator.geolocation) {
-    navigator.geolocation.getCurrentPosition(getLocationInfo, () =>
-      alert('Could not get your location')
-    );
-  }
-};
-
-btnWhereAmI.addEventListener('click', whereAmI);
+btnWhereAmI.addEventListener('click', getLocationInfo);
