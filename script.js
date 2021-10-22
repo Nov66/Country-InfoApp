@@ -2,6 +2,11 @@
 const countriesContainer = document.querySelector('.countries');
 const btnWhereAmI = document.querySelector('.btn-country');
 
+const renderError = msg => {
+  countriesContainer.insertAdjacentText('beforeend', msg);
+  countriesContainer.style.opacity = 1;
+};
+
 const renderCountry = (data, className = '') => {
   const html = `
   <article class="country ${className}">
@@ -25,61 +30,68 @@ const renderCountry = (data, className = '') => {
   countriesContainer.style.opacity = 1;
 };
 
-const renderError = msg => {
-  countriesContainer.insertAdjacentText('beforeend', msg);
-  countriesContainer.style.opacity = 1;
-};
-
 const whereAmI = () => {
   return new Promise((resolve, reject) => {
     navigator.geolocation.getCurrentPosition(resolve, reject);
   });
 };
 
-const getLocationInfo = () => {
-  whereAmI()
-    .then(position => {
-      const { latitude } = position.coords;
-      const { longitude } = position.coords;
-      console.log(position);
-      return fetch(`https://geocode.xyz/${latitude},${longitude}?geoit=json`);
-    })
-    .then(response => {
-      if (!response.ok) {
-        throw new Error(`Problem with GeoCoding ${response.status}`);
-      }
-      return response.json();
-    })
-    .then(data => {
-      const country = data.country;
-      return country;
-    })
-    .then(country => {
-      return fetch(`https://restcountries.com/v3.1/name/${country}`);
-    })
-    .then(response => response.json())
-    .then(([data]) => {
-      console.log(data);
-      renderCountry(data);
+let neighbors;
 
-      const neighbors = data.borders;
-      return neighbors;
-    })
-    .then(neighbors => {
-      if (!neighbors) {
-        renderError(`No Neighbor Country Found`);
-        return;
-      }
-      neighbors.forEach(neighbor => {
-        fetch(`https://restcountries.com/v3.1/alpha/${neighbor}`)
-          .then(response => response.json())
-          .then(([data]) => renderCountry(data, 'neighbour'));
-      });
-    })
-    .catch(err => {
-      console.error(`${err}`);
-      renderError(`Something went WRONG 💥💥. Please Try Again`);
-    });
+const getNeighbors = async function () {
+  for (const neighbor of neighbors) {
+    const resNeighbor = await fetch(
+      `https://restcountries.com/v3.1/alpha/${neighbor}`
+    );
+    const [dataNeighbor] = await resNeighbor.json();
+    renderCountry(dataNeighbor, 'neighbour');
+  }
+};
+
+const getLocationInfo = async function () {
+  try {
+    // HIGHLIGHT: GeoLocation
+    const position = await whereAmI();
+    const { latitude, longitude } = position.coords;
+
+    // HIGHLIGHT: Reverse Geocoding
+    const resGeo = await fetch(
+      `https://geocode.xyz/${latitude},${longitude}?geoit=json`
+    );
+    if (!resGeo.ok) throw new Error('Problem getting location data');
+    const dataGeo = await resGeo.json();
+    console.log(dataGeo);
+
+    /* NOTE: Same as
+  fetch(`https://restcountries.com/v3.1/name/${country}`)
+  .then(res => console.log(res))
+  */
+    // HIGHLIGHT: Country Data
+    const res = await fetch(
+      `https://restcountries.com/v3.1/name/${dataGeo.country}`
+    );
+    if (!res.ok) throw new Error('Problem getting country');
+    // console.log(res);
+    const [data] = await res.json();
+    console.log(data);
+    renderCountry(data);
+
+    neighbors = data.borders;
+    if (!neighbors) {
+      renderError(`No Neighbor Country Found`);
+      return;
+    }
+    getNeighbors();
+  } catch (err) {
+    console.error(err);
+    renderError(`💥 ${err.message}`);
+
+    /*HIGHLIGHT: Reject Promise returned from Async function
+    - Async function do not reject Promise
+    - Need to rethrow error
+    */
+    throw err;
+  }
 };
 
 btnWhereAmI.addEventListener('click', getLocationInfo);
